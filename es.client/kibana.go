@@ -1,13 +1,17 @@
 package es
 
 import (
+	"sync"
+	"time"
 	"fmt"
 	"strings"
+	"log"
 	"encoding/json"
 )
 
 const (
 	DefaultIndexPatternStr	= "index-pattern"
+	DefaultSyncIndexPatternTime = 120
 )
 
 type Index struct {
@@ -15,19 +19,49 @@ type Index struct {
 	Status	string		`json:"status"`
 }
 
+type IndexPatterns struct {
+	patterns		[]string
+	mutex			*sync.RWMutex
+}
+
+func NewIndexPatterns() *IndexPatterns {
+	return &IndexPatterns{
+		patterns: []string{},
+		mutex: &sync.RWMutex{},
+	}
+}
+
+func (p *IndexPatterns) GetIndexPatterns() []string {
+	patterns := []string{}
+	p.mutex.RLock()
+	for _, pattern := range p.patterns {
+		patterns = append(patterns, pattern)
+	}
+	p.mutex.RUnlock()
+	return patterns
+}
+
+func (p *IndexPatterns) SetIndexPatterns(patterns []string) {
+	p.mutex.Lock()
+	p.patterns = patterns
+	p.mutex.Unlock()
+}
+
+
 type KibanaSimilar struct {
-	Client		*Client
-	kibanaIndex	string
-	Indices		[]Index
-	Patterns	[]string
+	Client			*Client
+	kibanaIndex		string
+	Indices			[]Index
+	Patterns		*IndexPatterns
 }
 
 func NewKibanaSimilar(host, kibanaIndex string) (*KibanaSimilar, error) {
 	ks := &KibanaSimilar{
 		Client: &Client{
-			Host: host,
+			Host: "http://" + host,
 		},
 		kibanaIndex: kibanaIndex,
+		Patterns: NewIndexPatterns(),
 	}
 
 	if err := ks.LoadIndices(); err != nil {
@@ -51,6 +85,7 @@ func (ks *KibanaSimilar) LoadIndices() error {
 		return err
 	}
 
+	log.Println("Load Indices: ", ks.Indices)
 	return nil
 }
 
@@ -71,28 +106,22 @@ func (ks *KibanaSimilar) CreateKibanaIndex() error {
 	return nil
 }
 
-func (ks *KibanaSimilar) GetKibanaIndexPatterns() ([]string, error) {
+func (ks *KibanaSimilar) SyncIndexPatterns() error {
 	body, err := ks.Client.Get(
 		fmt.Sprintf("/%s/%s/_search", ks.kibanaIndex, DefaultIndexPatternStr))
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	var searchResult SearchResult
 	err = json.Unmarshal(body, &searchResult)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	var patterns []string
-	if searchResult.Hits.Total > 0 {
-		for _, source := range searchResult.Hits.Hits {
-			if source.Type == DefaultIndexPatternStr {
-				patterns = append(patterns, source.ID)
-			}
-		}
-	}
-	return patterns, nil
+	ks.Patterns.SetIndexPatterns(searchResult.GetIndexPatterns())
+	log.Println("Load Index Patterns: ", ks.Patterns.GetIndexPatterns())
+	return nil
 }
 
 func (ks *KibanaSimilar) LoadKibanaIndexPatterns() error {
@@ -102,28 +131,18 @@ func (ks *KibanaSimilar) LoadKibanaIndexPatterns() error {
 		}
 	}
 
-	body, err := ks.Client.Get(
-		fmt.Sprintf("/%s/%s/_search", ks.kibanaIndex, DefaultIndexPatternStr))
-	if err != nil {
+	if err := ks.SyncIndexPatterns(); err != nil {
 		return err
 	}
 
-	var searchResult SearchResult
-	err = json.Unmarshal(body, &searchResult)
-	if err != nil {
-		return err
-	}
-
-	var patterns []string
-	if searchResult.Hits.Total > 0 {
-		for _, source := range searchResult.Hits.Hits {
-			if source.Type == DefaultIndexPatternStr {
-				patterns = append(patterns, source.ID)
+	go func() {
+		ticker := time.NewTicker(DefaultSyncIndexPatternTime * time.Second)
+		for _ = range ticker.C {
+			if err := ks.SyncIndexPatterns(); err != nil {
+				log.Println("Sync Index Patterns failed! Error: ", err)
 			}
 		}
-	}
-	ks.Patterns = patterns
-
+	}()
 	return nil
 }
 
@@ -148,7 +167,7 @@ func (ks *KibanaSimilar) CreateKibanaIndexPattern(indexPattern string) error {
 }
 
 func (ks *KibanaSimilar) IsKibanaIndexPatternExists(indexPattern string) bool {
-	for _, pattern := range ks.Patterns {
+	for _, pattern := range ks.Patterns.GetIndexPatterns() {
 		if pattern == indexPattern {
 			return true
 		}
