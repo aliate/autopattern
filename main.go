@@ -89,6 +89,7 @@ func main() {
 		log.Printf("Connect es: %s client Failed! Error: %s\n", config.ESHosts[0], err)
 		time.Sleep(30 * time.Second)
 	}
+	kibanaSimilar.InitKibanaIndexPatterns()
 
 	http.HandleFunc("/", handler)
 	log.Fatal(http.ListenAndServe(":" + config.Port, nil))

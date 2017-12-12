@@ -181,3 +181,46 @@ func (ks *KibanaSimilar) ProcessIndexPattern(indexPattern string) error {
 	}
 	return nil
 }
+
+func (ks *KibanaSimilar) IndicesToIndexPatterns() []string {
+	indexPatterns := []string{}
+
+	is_exists := func(pattern string) bool {
+		for _, p := range indexPatterns {
+			if p == pattern {
+				return true
+			}
+		}
+		return false
+	}
+
+	index_to_pattern := func(index string) string {
+		timeLen := len("2017-12-12")
+		splitLen := len(index)
+		if splitLen > timeLen {
+			splitLen -= timeLen
+		}
+		return index[:splitLen] + "*"
+	}
+
+	for _, index := range ks.Indices {
+		if index.Index == ks.kibanaIndex {
+			continue
+		}
+		pattern := index_to_pattern(index.Index)
+		if is_exists(pattern) {
+			continue
+		}
+		indexPatterns = append(indexPatterns, pattern)
+	}
+	return indexPatterns
+}
+
+func (ks *KibanaSimilar) InitKibanaIndexPatterns() {
+	patterns := ks.IndicesToIndexPatterns()
+	for _, pattern := range patterns {
+		if err := ks.ProcessIndexPattern(pattern); err != nil {
+			log.Printf("Create index pattern: %s failed! Error: %s\n", pattern, err)
+		}
+	}
+}
