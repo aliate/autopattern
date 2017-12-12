@@ -57,9 +57,7 @@ type KibanaSimilar struct {
 
 func NewKibanaSimilar(host, kibanaIndex string) (*KibanaSimilar, error) {
 	ks := &KibanaSimilar{
-		Client: &Client{
-			Host: "http://" + host,
-		},
+		Client: NewClient(host),
 		kibanaIndex: kibanaIndex,
 		Patterns: NewIndexPatterns(),
 	}

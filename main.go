@@ -77,7 +77,6 @@ func main() {
 		log.Fatal("ES_HOSTS must been set in env!")
 	}
 
-
 	log.Println("Welcome enter autopattern!")
 	log.Printf("Config: %#v\n", config)
 
