@@ -70,25 +70,29 @@ func processIndexPattern(indexPattern string) {
 	}
 }
 
-func showBanner() {
-	banner := `
+const (
+	banner = `
    ___            __       ____         __    __
   /   | __  __ __/ /_ __  / _  \__   __/ /___/ /____  __   __
  / _| |/ /_/ //_  __/ _ \/ ___/ _ \ /_  __/_  __/ _ \/ _ \/ _ \
-/_/ |_|\_____/ /__/ \___/_/   \____/ /__/  /__/ \_____/  /_//_/
+/_/ |_|\_____/ /__/ \___/_/   \____/ /__/  /__/ \_____/  /_//_/ %s
 	`
-	log.Println(banner)
+	version = "1.0.0"
+)
+
+func showBanner() {
+	log.Printf(banner, version)
 }
 
 func main() {
+	showBanner()
+
 	var config Config
 	config.Load()
 	if len(config.ESHosts) == 0 {
 		log.Fatal("ES_HOSTS must been set in env!")
 	}
 
-	log.Println("Welcome enter autopattern!")
-	showBanner()
 	log.Printf("Config: %#v\n", config)
 
 	for {
