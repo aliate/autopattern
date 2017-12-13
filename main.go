@@ -70,6 +70,16 @@ func processIndexPattern(indexPattern string) {
 	}
 }
 
+func showBanner() {
+	banner := `
+   ___            __       ____         __    __
+  /   | __  __ __/ /_ __  / _  \__   __/ /___/ /____  __   __
+ / _| |/ /_/ //_  __/ _ \/ ___/ _ \ /_  __/_  __/ _ \/ _ \/ _ \
+/_/ |_|\_____/ /__/ \___/_/   \____/ /__/  /__/ \_____/  /_//_/
+	`
+	log.Println(banner)
+}
+
 func main() {
 	var config Config
 	config.Load()
@@ -78,6 +88,7 @@ func main() {
 	}
 
 	log.Println("Welcome enter autopattern!")
+	showBanner()
 	log.Printf("Config: %#v\n", config)
 
 	for {
