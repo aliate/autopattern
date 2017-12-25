@@ -2,6 +2,7 @@ package main
 
 import (
 	"strings"
+	"strconv"
 	"time"
 	"log"
 	"net/http"
@@ -14,13 +15,15 @@ import (
 var kibanaSimilar *es.KibanaSimilar
 
 type Config struct {
-	Port		string
-	ESHosts		[]string
-	KibanaIndex	string
+	Port			string
+	ESHosts			[]string
+	ESIndexKeepDays	int
+	KibanaIndex		string
 }
 
 const (
 	DefaultPort = "12345"
+	DefaultIndexKeepDays = 30
 	DefaultKibanaIndex = ".kibana"
 )
 
@@ -44,6 +47,18 @@ func (c *Config) Load() {
 		if err != nil {
 			log.Printf("Unmarshal ES_HOSTS Error: %s\n", err)
 		}
+	}
+	esIndexKeepDays := os.Getenv("ES_INDEX_KEEP_DAYS")
+	if len(esIndexKeepDays) > 0 {
+		keepDays, err := strconv.Atoi(esIndexKeepDays)
+		if err != nil {
+			log.Printf("ES_INDEX_KEEP_DAYS parse failed! Error: %s\n", err)
+			log.Printf("Use default 30 days...\n")
+			keepDays = DefaultIndexKeepDays
+		}
+		c.ESIndexKeepDays = keepDays
+	} else {
+		c.ESIndexKeepDays = DefaultIndexKeepDays
 	}
 	kibanaIndex := os.Getenv("KIBANA_INDEX")
 	if len(kibanaIndex) > 0 {
@@ -72,12 +87,13 @@ func processIndexPattern(indexPattern string) {
 
 const (
 	banner = `
-   ___            __       ____         __    __
-  /   | __  __ __/ /_ __  / _  \__   __/ /___/ /____  __   __
- / _| |/ /_/ //_  __/ _ \/ ___/ _ \ /_  __/_  __/ _ \/ _ \/ _ \
-/_/ |_|\_____/ /__/ \___/_/   \____/ /__/  /__/ \_____/  /_//_/ %s
+   ___          __                    __    __               
+  /   | __ ____/ /____  ___  __/\  __/ /___/ /____  ___  __  
+ / _| |/ // /_  __/ _ \/ _ \/ _ /_/_  __/_  __/ __\/ __\/ _ \
+/_/ |_|\____//__/ \___/ ___/\____/ /__/  /__/ \___/_/  /_//_/  %s
+                     /_/                                     
 	`
-	version = "1.0.0"
+	version = "1.1.0"
 )
 
 func showBanner() {
@@ -105,6 +121,12 @@ func main() {
 		time.Sleep(30 * time.Second)
 	}
 	kibanaSimilar.InitKibanaIndexPatterns()
+
+	// Start Curator for auto delete indices
+	curator := es.NewCurator(config.ESHosts[0], config.ESIndexKeepDays)
+	if err := curator.Start(); err != nil {
+		log.Panicf("Start Curator failed! Error: %s\n", err)
+	}
 
 	http.HandleFunc("/", handler)
 	log.Fatal(http.ListenAndServe(":" + config.Port, nil))
