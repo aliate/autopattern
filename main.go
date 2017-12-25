@@ -18,6 +18,7 @@ type Config struct {
 	Port			string
 	ESHosts			[]string
 	ESIndexKeepDays	int
+	ESClearTime 	int
 	KibanaIndex		string
 }
 
@@ -41,18 +42,20 @@ func (c *Config) Load() {
 	} else {
 		c.Port = DefaultPort
 	}
+
 	esHosts := os.Getenv("ES_HOSTS")
 	if len(esHosts) > 0 {
 		err := json.Unmarshal([]byte(processHosts(esHosts)), &c.ESHosts)
 		if err != nil {
-			log.Printf("Unmarshal ES_HOSTS Error: %s\n", err)
+			log.Printf("Unmarshal ES_HOSTS %s Error: %s\n", esHosts, err)
 		}
 	}
+
 	esIndexKeepDays := os.Getenv("ES_INDEX_KEEP_DAYS")
 	if len(esIndexKeepDays) > 0 {
 		keepDays, err := strconv.Atoi(esIndexKeepDays)
 		if err != nil {
-			log.Printf("ES_INDEX_KEEP_DAYS parse failed! Error: %s\n", err)
+			log.Printf("ES_INDEX_KEEP_DAYS: %s parse failed! Error: %s\n", esIndexKeepDays, err)
 			log.Printf("Use default 30 days...\n")
 			keepDays = DefaultIndexKeepDays
 		}
@@ -60,6 +63,19 @@ func (c *Config) Load() {
 	} else {
 		c.ESIndexKeepDays = DefaultIndexKeepDays
 	}
+
+	esClearTime := os.Getenv("ES_INDEX_CLEAR_TIME")
+	if len(esClearTime) > 0 {
+		clearTime, err := strconv.Atoi(esClearTime)
+		if err != nil {
+			log.Printf("ES_INDEX_CLEAR_TIME: %s parse failed! Error: %s\n", esClearTime, err)
+			clearTime = es.DefaultClearTime
+		}
+		c.ESClearTime = clearTime
+	} else {
+		c.ESClearTime = es.DefaultClearTime
+	}
+
 	kibanaIndex := os.Getenv("KIBANA_INDEX")
 	if len(kibanaIndex) > 0 {
 		c.KibanaIndex = kibanaIndex
@@ -123,7 +139,7 @@ func main() {
 	kibanaSimilar.InitKibanaIndexPatterns()
 
 	// Start Curator for auto delete indices
-	curator := es.NewCurator(config.ESHosts[0], config.ESIndexKeepDays)
+	curator := es.NewCurator(config.ESHosts[0], config.ESIndexKeepDays, config.ESClearTime)
 	if err := curator.Start(); err != nil {
 		log.Panicf("Start Curator failed! Error: %s\n", err)
 	}

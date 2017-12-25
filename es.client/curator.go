@@ -15,23 +15,26 @@ type Curator struct {
 
 const (
 	DefaultClearTime = 0
-	DefaultTimeFormat = "2016-01-02"
+	DefaultTimeFormat = "2006.01.02"
 )
 
-func NewCurator(esHost string, keepDays int) *Curator {
+func NewCurator(esHost string, keepDays int, clearTime int) *Curator {
 	return &Curator{
 		Client: NewClient(esHost),
 		IndexKeepDays: keepDays,
+		ClearTime: clearTime,
 		stop: make(chan struct{}),
 	}
 }
 
 func (c *Curator) deleteIndex(index string) error {
+	log.Printf("Try to delete index: %s\n", index)
 	_, err := c.Client.Delete(index)
 	return err
 }
 
 func (c *Curator) clearPassedIndices() {
+	log.Printf("Start clear passed indices...\n")
 	body, err := c.Client.Get("/_cat/indices")
 	if err != nil {
 		log.Printf("Curator get indices failed! Error: %s\n", err)
@@ -46,6 +49,7 @@ func (c *Curator) clearPassedIndices() {
 	}
 
 	getPassedDays := func(index string) int {
+		log.Println(index)
 		indexTime := index[len(index) - len(DefaultTimeFormat):]
 		then, err := time.Parse(DefaultTimeFormat, indexTime)
 		if err != nil {
@@ -56,6 +60,10 @@ func (c *Curator) clearPassedIndices() {
 	}
 
 	for _, index := range indices {
+		if len(index.Index) <= len(DefaultTimeFormat) {
+			log.Printf("Ignore index: %s\n", index.Index)
+			continue
+		}
 		if getPassedDays(index.Index) > c.IndexKeepDays {
 			err = c.deleteIndex(index.Index)
 			if err != nil {
@@ -63,15 +71,20 @@ func (c *Curator) clearPassedIndices() {
 			}
 		}
 	}
+	log.Printf("Clear passed indices finish...\n")
 }
 
 func (c *Curator) Start() error {
 	go func() {
+		now := time.Now()
+		if now.Hour() == c.ClearTime {
+			c.clearPassedIndices()
+		}
 		ticker := time.NewTicker(time.Hour * 1)
 		for {
 			select {
 			case t := <-ticker.C:
-				if t.Hour() == DefaultClearTime {
+				if t.Hour() == c.ClearTime {
 					c.clearPassedIndices()
 				}
 			case <-c.stop:
