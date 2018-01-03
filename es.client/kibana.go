@@ -146,9 +146,11 @@ func (ks *KibanaSimilar) LoadKibanaIndexPatterns() error {
 
 func (ks *KibanaSimilar) CreateKibanaIndexPattern(indexPattern string) error {
 	var data = struct {
-		Title	string	`json:"title"`
+		Title			string `json:"title"`
+		TimeFieldName 	string `json:"timeFieldName"`
 	}{
 		Title: indexPattern,
+		TimeFieldName: "@timestamp",
 	}
 	dataBytes, err := json.Marshal(&data)
 	if err != nil {

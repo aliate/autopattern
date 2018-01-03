@@ -18,7 +18,7 @@ type Config struct {
 	Port			string
 	ESHosts			[]string
 	ESIndexKeepDays	int
-	ESClearTime 	int
+	ESClearTime		int
 	KibanaIndex		string
 }
 
@@ -109,7 +109,7 @@ const (
 /_/ |_|\____//__/ \___/ ___/\____/ /__/  /__/ \___/_/  /_//_/  %s
                      /_/                                     
 	`
-	version = "1.1.0"
+	version = "1.1.1"
 )
 
 func showBanner() {
